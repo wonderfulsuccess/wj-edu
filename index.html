@@ -1,1120 +1,1190 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>音频播放清单</title>
-  <style>
-    :root {
-      --bg-start: #f4ebff;
-      --bg-mid: #e9efff;
-      --bg-end: #e0f4ff;
-      --card-bg: rgba(255, 255, 255, 0.56);
-      --card-border: rgba(255, 255, 255, 0.72);
-      --text-main: #2f3556;
-      --text-soft: #6f7599;
-      --accent: #6e80ff;
-      --accent-2: #75beff;
-      --accent-3: #95a6ff;
-      --ok: #35bb97;
-      --shadow: 0 18px 36px rgba(88, 102, 158, 0.2);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-      color: var(--text-main);
-      font-family: "Avenir Next", "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
-    }
-
-    body {
-      background: linear-gradient(130deg, var(--bg-start) 0%, var(--bg-mid) 48%, var(--bg-end) 100%);
-      position: relative;
-      overflow-x: hidden;
-    }
-
-    body.auth-pending {
-      overflow: hidden;
-    }
-
-    body.auth-pending .app-shell {
-      filter: blur(6px);
-      pointer-events: none;
-      user-select: none;
-    }
-
-    .bg-blur {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(36px);
-      opacity: 0.42;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    .bg-blur.left {
-      width: 300px;
-      height: 300px;
-      left: -120px;
-      top: -70px;
-      background: #c7b4ff;
-    }
-
-    .bg-blur.right {
-      width: 380px;
-      height: 380px;
-      right: -160px;
-      top: 140px;
-      background: #a0d3ff;
-    }
-
-    .auth-gate {
-      position: fixed;
-      inset: 0;
-      z-index: 120;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 14px;
-      background: rgba(236, 242, 255, 0.42);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-    }
-
-    .auth-gate.active {
-      display: flex;
-    }
-
-    .auth-card {
-      width: min(430px, 92vw);
-      border-radius: 24px;
-      padding: 18px 16px 14px;
-      background: rgba(255, 255, 255, 0.74);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 22px 48px rgba(74, 93, 159, 0.26);
-    }
-
-    .auth-title {
-      margin: 0;
-      font-size: 1.2rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-      color: #2f3556;
-    }
-
-    .auth-desc {
-      margin: 6px 0 10px;
-      color: var(--text-soft);
-      font-size: 0.92rem;
-      line-height: 1.45;
-    }
-
-    .auth-form {
-      display: grid;
-      gap: 10px;
-    }
-
-    .auth-input {
-      width: 100%;
-      border-radius: 14px;
-      border: 1px solid rgba(170, 183, 238, 0.62);
-      background: rgba(255, 255, 255, 0.88);
-      padding: 11px 12px;
-      font-size: 1rem;
-      color: var(--text-main);
-      outline: none;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .auth-input:focus {
-      border-color: rgba(108, 126, 232, 0.78);
-      box-shadow: 0 0 0 3px rgba(126, 145, 244, 0.16);
-    }
-
-    .auth-submit {
-      border-radius: 14px;
-      padding: 11px 14px;
-      border: none;
-      background: linear-gradient(120deg, var(--accent), var(--accent-2));
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .auth-error {
-      min-height: 1.1rem;
-      margin: 4px 0 0;
-      color: #d14c76;
-      font-size: 0.86rem;
-    }
-
-    .app-shell {
-      width: min(980px, 92vw);
-      margin: 18px auto 26px;
-      position: relative;
-      z-index: 1;
-      min-height: calc(100dvh - 76px);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .glass-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-    }
-
-    .topbar {
-      border-radius: 24px;
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      position: sticky;
-      top: 12px;
-      z-index: 40;
-      flex-shrink: 0;
-      box-shadow: 0 24px 48px rgba(83, 102, 165, 0.28), 0 8px 18px rgba(114, 136, 212, 0.18);
-      transform: translateY(-1px);
-      isolation: isolate;
-    }
-
-    .topbar::after {
-      content: "";
-      position: absolute;
-      left: 8%;
-      right: 8%;
-      bottom: -14px;
-      height: 24px;
-      background: radial-gradient(ellipse at center, rgba(114, 139, 228, 0.32), rgba(114, 139, 228, 0));
-      filter: blur(7px);
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    .brand h1 {
-      margin: 0;
-      font-size: 1.28rem;
-      letter-spacing: 0.02em;
-      font-weight: 700;
-    }
-
-    .brand p {
-      margin: 5px 0 0;
-      color: var(--text-soft);
-      font-size: 0.96rem;
-    }
-
-    .nav-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    button {
-      border: none;
-      border-radius: 14px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 0.92rem;
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.66);
-      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 18px rgba(108, 127, 188, 0.18);
-    }
-
-    .tab-btn.active {
-      background: linear-gradient(120deg, var(--accent-3), var(--accent-2));
-      color: #fff;
-    }
-
-    .page {
-      display: none;
-      margin-top: 12px;
-    }
-
-    .page.active {
-      display: block;
-      animation: fade-in 0.28s ease;
-    }
-
-    @keyframes fade-in {
-      from {
-        opacity: 0;
-        transform: translateY(4px);
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>音频播放清单</title>
+    <style>
+      :root {
+        --bg-start: #f4ebff;
+        --bg-mid: #e9efff;
+        --bg-end: #e0f4ff;
+        --card-bg: rgba(255, 255, 255, 0.56);
+        --card-border: rgba(255, 255, 255, 0.72);
+        --text-main: #2f3556;
+        --text-soft: #6f7599;
+        --accent: #6e80ff;
+        --accent-2: #75beff;
+        --accent-3: #95a6ff;
+        --ok: #35bb97;
+        --shadow: 0 18px 36px rgba(88, 102, 158, 0.2);
       }
-      to {
-        opacity: 1;
-        transform: translateY(0);
+
+      * {
+        box-sizing: border-box;
       }
-    }
 
-    #listPage.active {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-      flex-direction: column;
-    }
-
-    #listPage .panel {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-      flex-direction: column;
-    }
-
-    .panel {
-      border-radius: 24px;
-      padding: 16px;
-    }
-
-    .panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .panel h2 {
-      margin: 0;
-      font-size: 1.06rem;
-    }
-
-    .muted {
-      color: var(--text-soft);
-      margin: 8px 0 0;
-      font-size: 0.9rem;
-    }
-
-    .playlist {
-      margin-top: 10px;
-      display: grid;
-      gap: 8px;
-      flex: 1;
-      min-height: 0;
-      max-height: none;
-      overflow: auto;
-      padding-right: 4px;
-    }
-
-    .track-item {
-      width: 100%;
-      text-align: left;
-      border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.76);
-      background: rgba(255, 255, 255, 0.72);
-      padding: 10px;
-    }
-
-    .track-item.active {
-      border-color: rgba(111, 130, 255, 0.5);
-      box-shadow: 0 10px 22px rgba(101, 122, 198, 0.2);
-      background: rgba(255, 255, 255, 0.92);
-    }
-
-    .track-title {
-      font-weight: 600;
-      line-height: 1.42;
-    }
-
-    .track-meta {
-      margin-top: 6px;
-      font-size: 0.84rem;
-      color: var(--text-soft);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .progress-track {
-      margin-top: 8px;
-      width: 100%;
-      height: 6px;
-      border-radius: 999px;
-      background: rgba(120, 138, 191, 0.2);
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      width: 0%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #869bff, #7ac4ff);
-      transition: width 0.24s ease;
-    }
-
-    .status-row {
-      margin-top: 6px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .badge {
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      background: rgba(115, 133, 189, 0.14);
-      color: #55608b;
-    }
-
-    .badge.ok {
-      background: rgba(53, 187, 151, 0.16);
-      color: #278367;
-    }
-
-    .player-panel {
-      display: grid;
-      gap: 12px;
-      position: relative;
-    }
-
-    .audio-loading {
-      position: absolute;
-      inset: 10px;
-      border-radius: 20px;
-      background: rgba(243, 248, 255, 0.74);
-      border: 1px solid rgba(169, 187, 243, 0.45);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      box-shadow: 0 14px 28px rgba(99, 118, 188, 0.14);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 12px;
-      z-index: 12;
-      pointer-events: none;
-    }
-
-    .audio-loading.active {
-      display: flex;
-      animation: fade-in 0.22s ease;
-    }
-
-    .audio-loading-spinner {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      border: 3px solid rgba(134, 155, 255, 0.32);
-      border-top-color: var(--accent);
-      animation: loading-spin 0.9s linear infinite;
-    }
-
-    .audio-loading-text {
-      margin: 0;
-      color: #4d5c92;
-      font-size: 0.9rem;
-      text-align: center;
-      line-height: 1.45;
-      max-width: 80%;
-    }
-
-    @keyframes loading-spin {
-      to {
-        transform: rotate(360deg);
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        color: var(--text-main);
+        font-family:
+          "Avenir Next", "SF Pro Display", "PingFang SC", "Microsoft YaHei",
+          sans-serif;
       }
-    }
 
-    .now-playing {
-      border-radius: 18px;
-      padding: 12px;
-      background: rgba(255, 255, 255, 0.68);
-      border: 1px solid rgba(255, 255, 255, 0.74);
-    }
+      body {
+        background: linear-gradient(
+          130deg,
+          var(--bg-start) 0%,
+          var(--bg-mid) 48%,
+          var(--bg-end) 100%
+        );
+        position: relative;
+        overflow-x: hidden;
+      }
 
-    .now-playing .label {
-      font-size: 0.82rem;
-      color: var(--text-soft);
-    }
+      body.auth-pending {
+        overflow: hidden;
+      }
 
-    .now-playing h3 {
-      margin: 6px 0 2px;
-      line-height: 1.38;
-      font-size: 1.12rem;
-    }
+      body.auth-pending .app-shell {
+        filter: blur(6px);
+        pointer-events: none;
+        user-select: none;
+      }
 
-    .timeline {
-      border-radius: 16px;
-      padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.64);
-      border: 1px solid rgba(255, 255, 255, 0.74);
-    }
+      .bg-blur {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(36px);
+        opacity: 0.42;
+        z-index: 0;
+        pointer-events: none;
+      }
 
-    #progressRange {
-      width: 100%;
-      cursor: pointer;
-      -webkit-appearance: none;
-      appearance: none;
-      height: 8px;
-      border-radius: 999px;
-      outline: none;
-      background: linear-gradient(
-        90deg,
-        #7f93ff 0%,
-        #7bbfff var(--range-progress, 0%),
-        rgba(131, 146, 192, 0.28) var(--range-progress, 0%),
-        rgba(131, 146, 192, 0.28) 100%
-      );
-    }
+      .bg-blur.left {
+        width: 300px;
+        height: 300px;
+        left: -120px;
+        top: -70px;
+        background: #c7b4ff;
+      }
 
-    #progressRange::-webkit-slider-runnable-track {
-      height: 8px;
-      border-radius: 999px;
-      background: transparent;
-    }
+      .bg-blur.right {
+        width: 380px;
+        height: 380px;
+        right: -160px;
+        top: 140px;
+        background: #a0d3ff;
+      }
 
-    #progressRange::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid #7084ff;
-      background: #ffffff;
-      margin-top: -4px;
-      box-shadow: 0 3px 8px rgba(112, 132, 232, 0.32);
-    }
+      .auth-gate {
+        position: fixed;
+        inset: 0;
+        z-index: 120;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 14px;
+        background: rgba(236, 242, 255, 0.42);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
 
-    #progressRange::-moz-range-track {
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(131, 146, 192, 0.28);
-    }
+      .auth-gate.active {
+        display: flex;
+      }
 
-    #progressRange::-moz-range-progress {
-      height: 8px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #7f93ff, #7bbfff);
-    }
+      .auth-card {
+        width: min(430px, 92vw);
+        border-radius: 24px;
+        padding: 18px 16px 14px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 22px 48px rgba(74, 93, 159, 0.26);
+      }
 
-    #progressRange::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid #7084ff;
-      background: #ffffff;
-      box-shadow: 0 3px 8px rgba(112, 132, 232, 0.32);
-    }
+      .auth-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: #2f3556;
+      }
 
-    #progressRange:focus-visible {
-      box-shadow: 0 0 0 3px rgba(126, 145, 244, 0.16);
-    }
+      .auth-desc {
+        margin: 6px 0 10px;
+        color: var(--text-soft);
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
 
-    .timeline-text {
-      margin-top: 4px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.84rem;
-      color: var(--text-soft);
-    }
+      .auth-form {
+        display: grid;
+        gap: 10px;
+      }
 
-    .controls {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+      .auth-input {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(170, 183, 238, 0.62);
+        background: rgba(255, 255, 255, 0.88);
+        padding: 11px 12px;
+        font-size: 1rem;
+        color: var(--text-main);
+        outline: none;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
 
-    .controls button {
-      min-width: 92px;
-    }
+      .auth-input:focus {
+        border-color: rgba(108, 126, 232, 0.78);
+        box-shadow: 0 0 0 3px rgba(126, 145, 244, 0.16);
+      }
 
-    .controls .primary {
-      background: linear-gradient(120deg, var(--accent), var(--accent-2));
-      color: #fff;
-      font-weight: 600;
-    }
+      .auth-submit {
+        border-radius: 14px;
+        padding: 11px 14px;
+        border: none;
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
 
-    .ghost {
-      background: rgba(255, 255, 255, 0.5);
-    }
+      .auth-error {
+        min-height: 1.1rem;
+        margin: 4px 0 0;
+        color: #d14c76;
+        font-size: 0.86rem;
+      }
 
-    .empty-tip {
-      text-align: center;
-      padding: 20px 6px;
-      color: var(--text-soft);
-      font-size: 0.94rem;
-    }
-
-    @media (max-width: 740px) {
       .app-shell {
-        width: min(980px, 94vw);
-        margin: 8px auto;
-        min-height: calc(100dvh - 16px);
+        width: min(980px, 92vw);
+        margin: 18px auto 26px;
+        position: relative;
+        z-index: 1;
+        min-height: calc(100dvh - 76px);
+        display: flex;
+        flex-direction: column;
       }
 
-      .topbar,
-      .panel {
-        border-radius: 18px;
+      .glass-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
       }
 
       .topbar {
-        padding: 12px 14px;
-        top: 8px;
+        border-radius: 24px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        position: sticky;
+        top: 12px;
+        z-index: 40;
+        flex-shrink: 0;
+        box-shadow:
+          0 24px 48px rgba(83, 102, 165, 0.28),
+          0 8px 18px rgba(114, 136, 212, 0.18);
+        transform: translateY(-1px);
+        isolation: isolate;
+      }
+
+      .topbar::after {
+        content: "";
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        bottom: -14px;
+        height: 24px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(114, 139, 228, 0.32),
+          rgba(114, 139, 228, 0)
+        );
+        filter: blur(7px);
+        z-index: -1;
+        pointer-events: none;
       }
 
       .brand h1 {
-        font-size: 1.18rem;
+        margin: 0;
+        font-size: 1.28rem;
+        letter-spacing: 0.02em;
+        font-weight: 700;
       }
 
       .brand p {
-        font-size: 0.9rem;
+        margin: 5px 0 0;
+        color: var(--text-soft);
+        font-size: 0.96rem;
       }
 
-      .panel {
-        padding: 12px;
+      .nav-actions {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
       }
 
       button {
-        padding: 8px 10px;
+        border: none;
+        border-radius: 14px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 0.92rem;
+        color: var(--text-main);
+        background: rgba(255, 255, 255, 0.66);
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.18s ease,
+          background 0.18s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(108, 127, 188, 0.18);
+      }
+
+      .tab-btn.active {
+        background: linear-gradient(120deg, var(--accent-3), var(--accent-2));
+        color: #fff;
+      }
+
+      .page {
+        display: none;
+        margin-top: 12px;
+      }
+
+      .page.active {
+        display: block;
+        animation: fade-in 0.28s ease;
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      #listPage.active {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      #listPage .panel {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .panel {
+        border-radius: 24px;
+        padding: 16px;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 1.06rem;
+      }
+
+      .muted {
+        color: var(--text-soft);
+        margin: 8px 0 0;
+        font-size: 0.9rem;
+      }
+
+      .playlist {
+        margin-top: 10px;
+        display: grid;
+        gap: 8px;
+        flex: 1;
+        min-height: 0;
+        max-height: none;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .track-item {
+        width: 100%;
+        text-align: left;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.76);
+        background: rgba(255, 255, 255, 0.72);
+        padding: 10px;
+      }
+
+      .track-item.active {
+        border-color: rgba(111, 130, 255, 0.5);
+        box-shadow: 0 10px 22px rgba(101, 122, 198, 0.2);
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .track-title {
+        font-weight: 600;
+        line-height: 1.42;
+      }
+
+      .track-meta {
+        margin-top: 6px;
+        font-size: 0.84rem;
+        color: var(--text-soft);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .progress-track {
+        margin-top: 8px;
+        width: 100%;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(120, 138, 191, 0.2);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #869bff, #7ac4ff);
+        transition: width 0.24s ease;
+      }
+
+      .status-row {
+        margin-top: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .badge {
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        background: rgba(115, 133, 189, 0.14);
+        color: #55608b;
+      }
+
+      .badge.ok {
+        background: rgba(53, 187, 151, 0.16);
+        color: #278367;
+      }
+
+      .player-panel {
+        display: grid;
+        gap: 12px;
+        position: relative;
+      }
+
+      .audio-loading {
+        position: absolute;
+        inset: 10px;
+        border-radius: 20px;
+        background: rgba(243, 248, 255, 0.74);
+        border: 1px solid rgba(169, 187, 243, 0.45);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 14px 28px rgba(99, 118, 188, 0.14);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 12;
+        pointer-events: none;
+      }
+
+      .audio-loading.active {
+        display: flex;
+        animation: fade-in 0.22s ease;
+      }
+
+      .audio-loading-spinner {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 3px solid rgba(134, 155, 255, 0.32);
+        border-top-color: var(--accent);
+        animation: loading-spin 0.9s linear infinite;
+      }
+
+      .audio-loading-text {
+        margin: 0;
+        color: #4d5c92;
+        font-size: 0.9rem;
+        text-align: center;
+        line-height: 1.45;
+        max-width: 80%;
+      }
+
+      @keyframes loading-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .now-playing {
+        border-radius: 18px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.68);
+        border: 1px solid rgba(255, 255, 255, 0.74);
+      }
+
+      .now-playing .label {
+        font-size: 0.82rem;
+        color: var(--text-soft);
+      }
+
+      .now-playing h3 {
+        margin: 6px 0 2px;
+        line-height: 1.38;
+        font-size: 1.12rem;
+      }
+
+      .timeline {
+        border-radius: 16px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.64);
+        border: 1px solid rgba(255, 255, 255, 0.74);
+      }
+
+      #progressRange {
+        width: 100%;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 8px;
+        border-radius: 999px;
+        outline: none;
+        background: linear-gradient(
+          90deg,
+          #7f93ff 0%,
+          #7bbfff var(--range-progress, 0%),
+          rgba(131, 146, 192, 0.28) var(--range-progress, 0%),
+          rgba(131, 146, 192, 0.28) 100%
+        );
+      }
+
+      #progressRange::-webkit-slider-runnable-track {
+        height: 8px;
+        border-radius: 999px;
+        background: transparent;
+      }
+
+      #progressRange::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid #7084ff;
+        background: #ffffff;
+        margin-top: -4px;
+        box-shadow: 0 3px 8px rgba(112, 132, 232, 0.32);
+      }
+
+      #progressRange::-moz-range-track {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(131, 146, 192, 0.28);
+      }
+
+      #progressRange::-moz-range-progress {
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #7f93ff, #7bbfff);
+      }
+
+      #progressRange::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid #7084ff;
+        background: #ffffff;
+        box-shadow: 0 3px 8px rgba(112, 132, 232, 0.32);
+      }
+
+      #progressRange:focus-visible {
+        box-shadow: 0 0 0 3px rgba(126, 145, 244, 0.16);
+      }
+
+      .timeline-text {
+        margin-top: 4px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.84rem;
+        color: var(--text-soft);
       }
 
       .controls {
-        justify-content: center;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
       }
-    }
-  </style>
-</head>
-<body class="auth-pending">
-  <div class="bg-blur left"></div>
-  <div class="bg-blur right"></div>
 
-  <div id="authGate" class="auth-gate active">
-    <div class="auth-card">
-      <h2 class="auth-title">访问验证</h2>
-      <form id="authForm" class="auth-form">
-        <input id="authPassword" class="auth-input" type="password" inputmode="numeric" autocomplete="off" placeholder="请输入密码">
-        <button id="authSubmit" class="auth-submit" type="submit">验证并进入</button>
-      </form>
-      <p id="authError" class="auth-error"></p>
+      .controls button {
+        min-width: 92px;
+      }
+
+      .controls .primary {
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        color: #fff;
+        font-weight: 600;
+      }
+
+      .ghost {
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .empty-tip {
+        text-align: center;
+        padding: 20px 6px;
+        color: var(--text-soft);
+        font-size: 0.94rem;
+      }
+
+      @media (max-width: 740px) {
+        .app-shell {
+          width: min(980px, 94vw);
+          margin: 8px auto;
+          min-height: calc(100dvh - 16px);
+        }
+
+        .topbar,
+        .panel {
+          border-radius: 18px;
+        }
+
+        .topbar {
+          padding: 12px 14px;
+          top: 8px;
+          flex-wrap: wrap;
+        }
+
+        .brand h1 {
+          font-size: 1.18rem;
+        }
+
+        .brand p {
+          font-size: 0.9rem;
+        }
+
+        .nav-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        .panel {
+          padding: 12px;
+        }
+
+        button {
+          padding: 8px 10px;
+        }
+
+        .controls {
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body class="auth-pending">
+    <div class="bg-blur left"></div>
+    <div class="bg-blur right"></div>
+
+    <div id="authGate" class="auth-gate active">
+      <div class="auth-card">
+        <h2 class="auth-title">访问验证</h2>
+        <form id="authForm" class="auth-form">
+          <input
+            id="authPassword"
+            class="auth-input"
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="请输入密码"
+          />
+          <button id="authSubmit" class="auth-submit" type="submit">
+            验证并进入
+          </button>
+        </form>
+        <p id="authError" class="auth-error"></p>
+      </div>
     </div>
-  </div>
 
-  <main class="app-shell">
-    <header class="topbar glass-card">
-      <div class="brand">
-        <h1>音频学习播放清单</h1>
-        <p>本地音频 · 断点续播 · 播放统计</p>
-      </div>
-      <div class="nav-actions">
-        <button id="navList" class="tab-btn" type="button">列表页</button>
-        <button id="navPlayer" class="tab-btn" type="button">播放器</button>
-      </div>
-    </header>
+    <main class="app-shell">
+      <header class="topbar glass-card">
+        <div class="nav-actions">
+          <button id="navList" class="tab-btn" type="button">列表页</button>
+          <button id="navPlayer" class="tab-btn" type="button">播放器</button>
+        </div>
+      </header>
 
-    <section id="listPage" class="page">
-      <div class="panel glass-card">
+      <section id="listPage" class="page">
+        <!-- <div class="panel glass-card"> -->
         <div class="panel-header">
           <h2>播放清单</h2>
           <button id="continueBtn" type="button">继续上次播放</button>
         </div>
         <p id="libraryInfo" class="muted"></p>
         <div id="playlist" class="playlist"></div>
-      </div>
-    </section>
+        <!-- </div> -->
+      </section>
 
-    <section id="playerPage" class="page">
-      <div class="panel glass-card player-panel">
-        <div class="panel-header">
-          <h2>播放器</h2>
-          <button id="backToList" type="button" class="ghost">返回列表</button>
-        </div>
-
-        <div class="now-playing">
-          <span class="label">当前音频</span>
-          <h3 id="nowTitle">-</h3>
-          <p id="nowStats" class="muted">播放 0 次 · 完播 0 次</p>
-        </div>
-
-        <div class="timeline">
-          <input id="progressRange" type="range" min="0" max="100" value="0" step="0.1">
-          <div class="timeline-text">
-            <span id="currentTime">00:00</span>
-            <span id="totalTime">00:00</span>
+      <section id="playerPage" class="page">
+        <div class="panel glass-card player-panel">
+          <div class="panel-header">
+            <h2>播放器</h2>
+            <button id="backToList" type="button" class="ghost">
+              返回列表
+            </button>
           </div>
+
+          <div class="now-playing">
+            <span class="label">当前音频</span>
+            <h3 id="nowTitle">-</h3>
+            <p id="nowStats" class="muted">播放 0 次 · 完播 0 次</p>
+          </div>
+
+          <div class="timeline">
+            <input
+              id="progressRange"
+              type="range"
+              min="0"
+              max="100"
+              value="0"
+              step="0.1"
+            />
+            <div class="timeline-text">
+              <span id="currentTime">00:00</span>
+              <span id="totalTime">00:00</span>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button id="prevBtn" type="button">上一首</button>
+            <button id="playPauseBtn" type="button" class="primary">
+              播放
+            </button>
+            <button id="nextBtn" type="button">下一首</button>
+          </div>
+
+          <div
+            id="audioLoading"
+            class="audio-loading"
+            aria-live="polite"
+            aria-hidden="true"
+          >
+            <div class="audio-loading-spinner"></div>
+            <p id="audioLoadingText" class="audio-loading-text">
+              音频加载中...
+            </p>
+          </div>
+
+          <audio id="audio" preload="metadata"></audio>
         </div>
+      </section>
+    </main>
 
-        <div class="controls">
-          <button id="prevBtn" type="button">上一首</button>
-          <button id="playPauseBtn" type="button" class="primary">播放</button>
-          <button id="nextBtn" type="button">下一首</button>
-        </div>
+    <script>
+      (() => {
+        const FALLBACK_TRACK_FILE_NAMES = [
+          "00 发刊词｜来！培养面向未来的孩子.mp3",
+          "01｜定位：为什么说大部分孩子都是普娃？.mp3",
+          "02｜核心：普娃该学些什么？又该怎么教？.mp3",
+          "03｜目的：教育就是为了考上好大学吗？.mp3",
+          "04｜方向：AI时代，学习内容要怎么变？.mp3",
+          "05｜方法：AI时代，教育方法要怎么变？.mp3",
+          "06｜问答：孩子沉迷电子产品，怎么办？.mp3",
+          "07｜共识：为啥说父母是孩子的天花板？.mp3",
+          "08｜前瞻：真正面向未来的教育什么样？.mp3",
+          "09｜早教：有没有必要做？又该怎么做？.mp3",
+          "10｜快乐教育：真像吹捧得那么神奇吗？.mp3",
+          "11｜问答：没有育儿经验，怎么建立教育认知？.mp3",
+          "12｜规律：不同年龄的孩子都该学什么？.mp3",
+          "13｜重点1：哪些知识一定要帮孩子补？.mp3",
+          "14｜重点 2：哪些知识一定要帮孩子补？.mp3",
+          "15 ｜角色：为啥家长要做青少年的朋友？.mp3",
+          "16｜问答：青少年培养要关注哪些细节？.mp3",
+          "17｜天赋：如何正确认识和发掘孩子的天赋？.mp3",
+          "18｜考试：如何复习和准备考试最有效？.mp3",
+          "19｜国际教育：出国读书，还有必要吗？.mp3",
+          "20｜教育分流：家长应如何看待和应对？.mp3",
+          "21｜问答：名校圈进不去？追星圈要不要进？.mp3",
+          "22｜教育路线：精英普通职业，怎么选？.mp3",
+          "23｜关键能力：毕业前一定要学会什么？.mp3",
+          "24｜意义：孩子上大学究竟是为了什么？.mp3",
+          "25｜本质：通识教育的本质到底是什么？.mp3",
+          "26｜问答：家校共育怎么做？少儿编程值得学吗？.mp3",
+          "27｜选大学：应该着重去考察哪些因素？.mp3",
+          "28｜选专业：如何衡量一个专业的好坏？.mp3",
+          "29｜大学 1：在哈佛大学，能学到什么？.mp3",
+          "30｜问答：什么吸引留学生定居？怎么提高孩子的自我定位？.mp3",
+          "31｜大学 2：在哈维·穆德学院，能学到什么？.mp3",
+          "32｜大学学习：如何真正地把知识搞懂？.mp3",
+          "33｜大学生活 1：为什么大学要谈恋爱？.mp3",
+          "34｜大学生活 2：如何建立良好人际圈？.mp3",
+          "35｜问答：孩子做作业慢、成绩提不上去，问题在哪？.mp3",
+          "36｜研究生：当下究竟还有没有必要读？.mp3",
+          "37｜衔接：什么时候进入社会最合适？.mp3",
+          "38｜原因：为什么今天的就业这么难？.mp3",
+          "39｜求职：第一份工作应该怎么选择？.mp3",
+          "40｜问答：留学生该提前定工作地吗？大学排名靠谱吗？.mp3",
+          "41｜工作：为什么不要去做伪工作者和假努力者？.mp3",
+          "42｜社交：如何跟领导同事日常相处？.mp3",
+          "43｜提升：什么决定了职场人的发展？.mp3",
+          "44｜态度：为啥说一定要为自己工作？.mp3",
+          "45｜问答：该帮孩子检查作业吗？孩子听不进建议怎么办？.mp3",
+          "46｜晋升：如何更快获得提拔和晋升？.mp3",
+          "47｜避坑：工作中哪些坑一定要避开？.mp3",
+          "48｜领导力：怎样从员工成长为领导者？.mp3",
+          "49｜自我保护：如何避免被职场霸凌？.mp3",
+          "50｜问答：孩子一定要超过父母吗？智慧比聪明更重要？.mp3",
+          "加餐01｜历史：教育如何跟随时代发展改变？.mp3",
+          "加餐02｜问题：为什么中国缺乏顶尖科学家？.mp3",
+          "加餐03｜精英教育：如何去兼顾公平与选拔？.mp3",
+          "加餐04｜参照：美国如何逐步筛选科学人才？.mp3",
+          "加餐05｜梯队筛选：为何说学术道路不好走？.mp3",
+          "加餐06｜元旦彩蛋：莎士比亚其人与时代.mp3",
+          "加餐07｜如何正确理性地看待“智商”？.mp3",
+          "加餐08｜为什么劝你不要轻易对标天才？.mp3",
+          "加餐09｜2026年CES见闻：我看到的世界和教育思考.mp3",
+        ];
 
-        <div id="audioLoading" class="audio-loading" aria-live="polite" aria-hidden="true">
-          <div class="audio-loading-spinner"></div>
-          <p id="audioLoadingText" class="audio-loading-text">音频加载中...</p>
-        </div>
+        const STORAGE_KEY = "wj_edu_audio_player_v1";
+        const AUTH_HASH_STORAGE_KEY = "wj_edu_password_hash_v1";
+        const TARGET_PASSWORD_HASH =
+          "9800a8677d99e5f6968d7357e44006388b09d3b6a8676d0f930fbaa63d02330d";
+        let TRACKS = [];
 
-        <audio id="audio" preload="metadata"></audio>
-      </div>
-    </section>
-  </main>
+        const elements = {
+          listPage: document.getElementById("listPage"),
+          playerPage: document.getElementById("playerPage"),
+          navList: document.getElementById("navList"),
+          navPlayer: document.getElementById("navPlayer"),
+          playlist: document.getElementById("playlist"),
+          libraryInfo: document.getElementById("libraryInfo"),
+          continueBtn: document.getElementById("continueBtn"),
+          backToList: document.getElementById("backToList"),
+          nowTitle: document.getElementById("nowTitle"),
+          nowStats: document.getElementById("nowStats"),
+          progressRange: document.getElementById("progressRange"),
+          currentTime: document.getElementById("currentTime"),
+          totalTime: document.getElementById("totalTime"),
+          prevBtn: document.getElementById("prevBtn"),
+          playPauseBtn: document.getElementById("playPauseBtn"),
+          nextBtn: document.getElementById("nextBtn"),
+          audio: document.getElementById("audio"),
+          authGate: document.getElementById("authGate"),
+          authForm: document.getElementById("authForm"),
+          authPassword: document.getElementById("authPassword"),
+          authSubmit: document.getElementById("authSubmit"),
+          authError: document.getElementById("authError"),
+          audioLoading: document.getElementById("audioLoading"),
+          audioLoadingText: document.getElementById("audioLoadingText"),
+        };
 
-  <script>
-    (() => {
-      const FALLBACK_TRACK_FILE_NAMES = [
-        "00 发刊词｜来！培养面向未来的孩子.mp3",
-        "01｜定位：为什么说大部分孩子都是普娃？.mp3",
-        "02｜核心：普娃该学些什么？又该怎么教？.mp3",
-        "03｜目的：教育就是为了考上好大学吗？.mp3",
-        "04｜方向：AI时代，学习内容要怎么变？.mp3",
-        "05｜方法：AI时代，教育方法要怎么变？.mp3",
-        "06｜问答：孩子沉迷电子产品，怎么办？.mp3",
-        "07｜共识：为啥说父母是孩子的天花板？.mp3",
-        "08｜前瞻：真正面向未来的教育什么样？.mp3",
-        "09｜早教：有没有必要做？又该怎么做？.mp3",
-        "10｜快乐教育：真像吹捧得那么神奇吗？.mp3",
-        "11｜问答：没有育儿经验，怎么建立教育认知？.mp3",
-        "12｜规律：不同年龄的孩子都该学什么？.mp3",
-        "13｜重点1：哪些知识一定要帮孩子补？.mp3",
-        "14｜重点 2：哪些知识一定要帮孩子补？.mp3",
-        "15 ｜角色：为啥家长要做青少年的朋友？.mp3",
-        "16｜问答：青少年培养要关注哪些细节？.mp3",
-        "17｜天赋：如何正确认识和发掘孩子的天赋？.mp3",
-        "18｜考试：如何复习和准备考试最有效？.mp3",
-        "19｜国际教育：出国读书，还有必要吗？.mp3",
-        "20｜教育分流：家长应如何看待和应对？.mp3",
-        "21｜问答：名校圈进不去？追星圈要不要进？.mp3",
-        "22｜教育路线：精英普通职业，怎么选？.mp3",
-        "23｜关键能力：毕业前一定要学会什么？.mp3",
-        "24｜意义：孩子上大学究竟是为了什么？.mp3",
-        "25｜本质：通识教育的本质到底是什么？.mp3",
-        "26｜问答：家校共育怎么做？少儿编程值得学吗？.mp3",
-        "27｜选大学：应该着重去考察哪些因素？.mp3",
-        "28｜选专业：如何衡量一个专业的好坏？.mp3",
-        "29｜大学 1：在哈佛大学，能学到什么？.mp3",
-        "30｜问答：什么吸引留学生定居？怎么提高孩子的自我定位？.mp3",
-        "31｜大学 2：在哈维·穆德学院，能学到什么？.mp3",
-        "32｜大学学习：如何真正地把知识搞懂？.mp3",
-        "33｜大学生活 1：为什么大学要谈恋爱？.mp3",
-        "34｜大学生活 2：如何建立良好人际圈？.mp3",
-        "35｜问答：孩子做作业慢、成绩提不上去，问题在哪？.mp3",
-        "36｜研究生：当下究竟还有没有必要读？.mp3",
-        "37｜衔接：什么时候进入社会最合适？.mp3",
-        "38｜原因：为什么今天的就业这么难？.mp3",
-        "39｜求职：第一份工作应该怎么选择？.mp3",
-        "40｜问答：留学生该提前定工作地吗？大学排名靠谱吗？.mp3",
-        "41｜工作：为什么不要去做伪工作者和假努力者？.mp3",
-        "42｜社交：如何跟领导同事日常相处？.mp3",
-        "43｜提升：什么决定了职场人的发展？.mp3",
-        "44｜态度：为啥说一定要为自己工作？.mp3",
-        "45｜问答：该帮孩子检查作业吗？孩子听不进建议怎么办？.mp3",
-        "46｜晋升：如何更快获得提拔和晋升？.mp3",
-        "47｜避坑：工作中哪些坑一定要避开？.mp3",
-        "48｜领导力：怎样从员工成长为领导者？.mp3",
-        "49｜自我保护：如何避免被职场霸凌？.mp3",
-        "50｜问答：孩子一定要超过父母吗？智慧比聪明更重要？.mp3",
-        "加餐01｜历史：教育如何跟随时代发展改变？.mp3",
-        "加餐02｜问题：为什么中国缺乏顶尖科学家？.mp3",
-        "加餐03｜精英教育：如何去兼顾公平与选拔？.mp3",
-        "加餐04｜参照：美国如何逐步筛选科学人才？.mp3",
-        "加餐05｜梯队筛选：为何说学术道路不好走？.mp3",
-        "加餐06｜元旦彩蛋：莎士比亚其人与时代.mp3",
-        "加餐07｜如何正确理性地看待“智商”？.mp3",
-        "加餐08｜为什么劝你不要轻易对标天才？.mp3",
-        "加餐09｜2026年CES见闻：我看到的世界和教育思考.mp3"
-      ];
+        const state = loadState();
+        let currentIndex = clampIndex(state.currentTrackIndex || 0);
+        let nearEndMarked = false;
+        let pendingPlayCount = false;
+        let progressTimer = null;
+        let isScrubbing = false;
+        let loadToken = 0;
+        let appStarted = false;
+        let audioLoadingTimer = null;
+        let audioLoadingFallbackTimer = null;
+        let isAudioLoadingVisible = false;
 
-      const STORAGE_KEY = "wj_edu_audio_player_v1";
-      const AUTH_HASH_STORAGE_KEY = "wj_edu_password_hash_v1";
-      const TARGET_PASSWORD_HASH = "9800a8677d99e5f6968d7357e44006388b09d3b6a8676d0f930fbaa63d02330d";
-      let TRACKS = [];
-
-      const elements = {
-        listPage: document.getElementById("listPage"),
-        playerPage: document.getElementById("playerPage"),
-        navList: document.getElementById("navList"),
-        navPlayer: document.getElementById("navPlayer"),
-        playlist: document.getElementById("playlist"),
-        libraryInfo: document.getElementById("libraryInfo"),
-        continueBtn: document.getElementById("continueBtn"),
-        backToList: document.getElementById("backToList"),
-        nowTitle: document.getElementById("nowTitle"),
-        nowStats: document.getElementById("nowStats"),
-        progressRange: document.getElementById("progressRange"),
-        currentTime: document.getElementById("currentTime"),
-        totalTime: document.getElementById("totalTime"),
-        prevBtn: document.getElementById("prevBtn"),
-        playPauseBtn: document.getElementById("playPauseBtn"),
-        nextBtn: document.getElementById("nextBtn"),
-        audio: document.getElementById("audio"),
-        authGate: document.getElementById("authGate"),
-        authForm: document.getElementById("authForm"),
-        authPassword: document.getElementById("authPassword"),
-        authSubmit: document.getElementById("authSubmit"),
-        authError: document.getElementById("authError"),
-        audioLoading: document.getElementById("audioLoading"),
-        audioLoadingText: document.getElementById("audioLoadingText")
-      };
-
-      const state = loadState();
-      let currentIndex = clampIndex(state.currentTrackIndex || 0);
-      let nearEndMarked = false;
-      let pendingPlayCount = false;
-      let progressTimer = null;
-      let isScrubbing = false;
-      let loadToken = 0;
-      let appStarted = false;
-      let audioLoadingTimer = null;
-      let audioLoadingFallbackTimer = null;
-      let isAudioLoadingVisible = false;
-
-      async function sha256Hex(text) {
-        if (!window.crypto || !window.crypto.subtle) {
-          throw new Error("crypto unavailable");
-        }
-        const encoded = new TextEncoder().encode(text);
-        const hashBuffer = await window.crypto.subtle.digest("SHA-256", encoded);
-        return Array.from(new Uint8Array(hashBuffer))
-          .map((byte) => byte.toString(16).padStart(2, "0"))
-          .join("");
-      }
-
-      function getSavedAuthHash() {
-        try {
-          return localStorage.getItem(AUTH_HASH_STORAGE_KEY);
-        } catch (error) {
-          return null;
-        }
-      }
-
-      function saveAuthHash(hash) {
-        try {
-          localStorage.setItem(AUTH_HASH_STORAGE_KEY, hash);
-        } catch (error) {
-          // 忽略 localStorage 写入失败
-        }
-      }
-
-      function isAuthorized() {
-        return getSavedAuthHash() === TARGET_PASSWORD_HASH;
-      }
-
-      function setAuthGateVisible(visible) {
-        document.body.classList.toggle("auth-pending", visible);
-        elements.authGate.classList.toggle("active", visible);
-      }
-
-      function setAuthError(message) {
-        elements.authError.textContent = message || "";
-      }
-
-      function setAudioLoadingVisible(visible, message = "") {
-        if (message) {
-          elements.audioLoadingText.textContent = message;
-        }
-        isAudioLoadingVisible = visible;
-        elements.audioLoading.classList.toggle("active", visible);
-        elements.audioLoading.setAttribute("aria-hidden", visible ? "false" : "true");
-      }
-
-      function showAudioLoadingSoon(message) {
-        if (isAudioLoadingVisible) {
-          if (message) {
-            setAudioLoadingVisible(true, message);
+        async function sha256Hex(text) {
+          if (!window.crypto || !window.crypto.subtle) {
+            throw new Error("crypto unavailable");
           }
-          return;
+          const encoded = new TextEncoder().encode(text);
+          const hashBuffer = await window.crypto.subtle.digest(
+            "SHA-256",
+            encoded,
+          );
+          return Array.from(new Uint8Array(hashBuffer))
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("");
         }
 
-        clearTimeout(audioLoadingTimer);
-        audioLoadingTimer = setTimeout(() => {
-          setAudioLoadingVisible(true, message || "音频加载中...");
-        }, 260);
-      }
-
-      function hideAudioLoading() {
-        clearTimeout(audioLoadingTimer);
-        audioLoadingTimer = null;
-        clearTimeout(audioLoadingFallbackTimer);
-        audioLoadingFallbackTimer = null;
-        if (!isAudioLoadingVisible) {
-          return;
+        function getSavedAuthHash() {
+          try {
+            return localStorage.getItem(AUTH_HASH_STORAGE_KEY);
+          } catch (error) {
+            return null;
+          }
         }
-        setAudioLoadingVisible(false);
-      }
 
-      function startAppOnce() {
-        if (appStarted) {
-          return;
+        function saveAuthHash(hash) {
+          try {
+            localStorage.setItem(AUTH_HASH_STORAGE_KEY, hash);
+          } catch (error) {
+            // 忽略 localStorage 写入失败
+          }
         }
-        appStarted = true;
 
-        init().catch(() => {
-          setTracks(FALLBACK_TRACK_FILE_NAMES);
-          renderList();
-          setRoute("list");
-        });
-      }
+        function isAuthorized() {
+          return getSavedAuthHash() === TARGET_PASSWORD_HASH;
+        }
 
-      function bindAuthGate() {
-        elements.authForm.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          const rawPassword = elements.authPassword.value.trim();
+        function setAuthGateVisible(visible) {
+          document.body.classList.toggle("auth-pending", visible);
+          elements.authGate.classList.toggle("active", visible);
+        }
 
-          if (!rawPassword) {
-            setAuthError("请输入密码");
-            elements.authPassword.focus();
+        function setAuthError(message) {
+          elements.authError.textContent = message || "";
+        }
+
+        function setAudioLoadingVisible(visible, message = "") {
+          if (message) {
+            elements.audioLoadingText.textContent = message;
+          }
+          isAudioLoadingVisible = visible;
+          elements.audioLoading.classList.toggle("active", visible);
+          elements.audioLoading.setAttribute(
+            "aria-hidden",
+            visible ? "false" : "true",
+          );
+        }
+
+        function showAudioLoadingSoon(message) {
+          if (isAudioLoadingVisible) {
+            if (message) {
+              setAudioLoadingVisible(true, message);
+            }
             return;
           }
 
-          setAuthError("");
-          elements.authSubmit.disabled = true;
-          elements.authSubmit.textContent = "验证中...";
+          clearTimeout(audioLoadingTimer);
+          audioLoadingTimer = setTimeout(() => {
+            setAudioLoadingVisible(true, message || "音频加载中...");
+          }, 260);
+        }
 
-          try {
-            const hashedInput = await sha256Hex(rawPassword);
+        function hideAudioLoading() {
+          clearTimeout(audioLoadingTimer);
+          audioLoadingTimer = null;
+          clearTimeout(audioLoadingFallbackTimer);
+          audioLoadingFallbackTimer = null;
+          if (!isAudioLoadingVisible) {
+            return;
+          }
+          setAudioLoadingVisible(false);
+        }
 
-            if (hashedInput !== TARGET_PASSWORD_HASH) {
-              setAuthError("密码错误，请重试");
-              elements.authPassword.select();
+        function startAppOnce() {
+          if (appStarted) {
+            return;
+          }
+          appStarted = true;
+
+          init().catch(() => {
+            setTracks(FALLBACK_TRACK_FILE_NAMES);
+            renderList();
+            setRoute("list");
+          });
+        }
+
+        function bindAuthGate() {
+          elements.authForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const rawPassword = elements.authPassword.value.trim();
+
+            if (!rawPassword) {
+              setAuthError("请输入密码");
+              elements.authPassword.focus();
               return;
             }
 
-            saveAuthHash(hashedInput);
-            setAuthGateVisible(false);
             setAuthError("");
-            elements.authPassword.value = "";
+            elements.authSubmit.disabled = true;
+            elements.authSubmit.textContent = "验证中...";
+
+            try {
+              const hashedInput = await sha256Hex(rawPassword);
+
+              if (hashedInput !== TARGET_PASSWORD_HASH) {
+                setAuthError("密码错误，请重试");
+                elements.authPassword.select();
+                return;
+              }
+
+              saveAuthHash(hashedInput);
+              setAuthGateVisible(false);
+              setAuthError("");
+              elements.authPassword.value = "";
+              startAppOnce();
+            } catch (error) {
+              setAuthError("当前环境不支持哈希校验，请更换浏览器");
+            } finally {
+              elements.authSubmit.disabled = false;
+              elements.authSubmit.textContent = "验证并进入";
+            }
+          });
+        }
+
+        function bootstrap() {
+          bindAuthGate();
+
+          if (isAuthorized()) {
+            setAuthGateVisible(false);
             startAppOnce();
+            return;
+          }
+
+          setAuthGateVisible(true);
+          setAuthError("");
+          elements.authPassword.focus();
+        }
+
+        function buildTracks(fileNames) {
+          return fileNames.map((fileName, index) => ({
+            index,
+            fileName,
+            title: fileName.replace(/\.mp3$/i, ""),
+            src: `mp3/${fileName}`,
+          }));
+        }
+
+        function setTracks(fileNames) {
+          TRACKS = buildTracks(fileNames);
+          currentIndex = clampIndex(state.currentTrackIndex || 0);
+          state.currentTrackIndex = currentIndex;
+        }
+
+        function defaultTrackState() {
+          return {
+            progress: 0,
+            duration: 0,
+            playCount: 0,
+            completeCount: 0,
+            lastUpdated: 0,
+          };
+        }
+
+        function clampIndex(index) {
+          if (!TRACKS.length) {
+            return 0;
+          }
+          const safe = Number(index);
+          if (!Number.isFinite(safe)) {
+            return 0;
+          }
+          if (safe < 0) {
+            return 0;
+          }
+          if (safe >= TRACKS.length) {
+            return TRACKS.length - 1;
+          }
+          return Math.floor(safe);
+        }
+
+        function loadState() {
+          const base = {
+            currentTrackIndex: 0,
+            tracks: {},
+          };
+
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) {
+              return base;
+            }
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") {
+              return base;
+            }
+            if (!parsed.tracks || typeof parsed.tracks !== "object") {
+              parsed.tracks = {};
+            }
+            if (!Number.isFinite(parsed.currentTrackIndex)) {
+              parsed.currentTrackIndex = 0;
+            }
+            return parsed;
           } catch (error) {
-            setAuthError("当前环境不支持哈希校验，请更换浏览器");
-          } finally {
-            elements.authSubmit.disabled = false;
-            elements.authSubmit.textContent = "验证并进入";
-          }
-        });
-      }
-
-      function bootstrap() {
-        bindAuthGate();
-
-        if (isAuthorized()) {
-          setAuthGateVisible(false);
-          startAppOnce();
-          return;
-        }
-
-        setAuthGateVisible(true);
-        setAuthError("");
-        elements.authPassword.focus();
-      }
-
-      function buildTracks(fileNames) {
-        return fileNames.map((fileName, index) => ({
-          index,
-          fileName,
-          title: fileName.replace(/\.mp3$/i, ""),
-          src: `mp3/${fileName}`
-        }));
-      }
-
-      function setTracks(fileNames) {
-        TRACKS = buildTracks(fileNames);
-        currentIndex = clampIndex(state.currentTrackIndex || 0);
-        state.currentTrackIndex = currentIndex;
-      }
-
-      function defaultTrackState() {
-        return {
-          progress: 0,
-          duration: 0,
-          playCount: 0,
-          completeCount: 0,
-          lastUpdated: 0
-        };
-      }
-
-      function clampIndex(index) {
-        if (!TRACKS.length) {
-          return 0;
-        }
-        const safe = Number(index);
-        if (!Number.isFinite(safe)) {
-          return 0;
-        }
-        if (safe < 0) {
-          return 0;
-        }
-        if (safe >= TRACKS.length) {
-          return TRACKS.length - 1;
-        }
-        return Math.floor(safe);
-      }
-
-      function loadState() {
-        const base = {
-          currentTrackIndex: 0,
-          tracks: {}
-        };
-
-        try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) {
             return base;
           }
-          const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== "object") {
-            return base;
+        }
+
+        async function discoverTrackFiles() {
+          try {
+            const response = await fetch("mp3/");
+            if (!response.ok) {
+              throw new Error("failed to read mp3 directory");
+            }
+
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const links = Array.from(doc.querySelectorAll("a"));
+            const files = links
+              .map((link) => link.getAttribute("href") || "")
+              .filter((href) => /\.mp3($|\?)/i.test(href))
+              .map((href) => {
+                const clean = href.split("?")[0].replace(/\/$/, "");
+                const fileName = clean.includes("/")
+                  ? clean.slice(clean.lastIndexOf("/") + 1)
+                  : clean;
+                return decodeURIComponent(fileName);
+              })
+              .filter(Boolean);
+
+            const unique = Array.from(new Set(files));
+            if (unique.length) {
+              unique.sort((a, b) =>
+                a.localeCompare(b, "zh-Hans-CN", { numeric: true }),
+              );
+              return unique;
+            }
+          } catch (error) {
+            // 目录索引不可用时使用内置清单
           }
-          if (!parsed.tracks || typeof parsed.tracks !== "object") {
-            parsed.tracks = {};
-          }
-          if (!Number.isFinite(parsed.currentTrackIndex)) {
-            parsed.currentTrackIndex = 0;
-          }
-          return parsed;
-        } catch (error) {
-          return base;
+          return [...FALLBACK_TRACK_FILE_NAMES];
         }
-      }
 
-      async function discoverTrackFiles() {
-        try {
-          const response = await fetch("mp3/");
-          if (!response.ok) {
-            throw new Error("failed to read mp3 directory");
-          }
-
-          const html = await response.text();
-          const doc = new DOMParser().parseFromString(html, "text/html");
-          const links = Array.from(doc.querySelectorAll("a"));
-          const files = links
-            .map((link) => link.getAttribute("href") || "")
-            .filter((href) => /\.mp3($|\?)/i.test(href))
-            .map((href) => {
-              const clean = href.split("?")[0].replace(/\/$/, "");
-              const fileName = clean.includes("/") ? clean.slice(clean.lastIndexOf("/") + 1) : clean;
-              return decodeURIComponent(fileName);
-            })
-            .filter(Boolean);
-
-          const unique = Array.from(new Set(files));
-          if (unique.length) {
-            unique.sort((a, b) => a.localeCompare(b, "zh-Hans-CN", { numeric: true }));
-            return unique;
-          }
-        } catch (error) {
-          // 目录索引不可用时使用内置清单
-        }
-        return [...FALLBACK_TRACK_FILE_NAMES];
-      }
-
-      function saveState() {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        } catch (error) {
-          // localStorage 写入失败时忽略，页面仍可工作
-        }
-      }
-
-      function ensureTrackState(fileName) {
-        if (!state.tracks[fileName]) {
-          state.tracks[fileName] = defaultTrackState();
-        }
-        return state.tracks[fileName];
-      }
-
-      function getCurrentTrack() {
-        return TRACKS[currentIndex] || null;
-      }
-
-      function formatTime(seconds) {
-        if (!Number.isFinite(seconds) || seconds < 0) {
-          return "00:00";
-        }
-        const total = Math.floor(seconds);
-        const h = Math.floor(total / 3600);
-        const m = Math.floor((total % 3600) / 60);
-        const s = total % 60;
-
-        if (h > 0) {
-          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-        }
-        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-      }
-
-      function escapeHtml(text) {
-        return String(text)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/\"/g, "&quot;")
-          .replace(/'/g, "&#39;");
-      }
-
-      function routeFromHash() {
-        return location.hash === "#player" ? "player" : "list";
-      }
-
-      function setRoute(route, syncHash = true) {
-        const activeRoute = route === "player" ? "player" : "list";
-        elements.listPage.classList.toggle("active", activeRoute === "list");
-        elements.playerPage.classList.toggle("active", activeRoute === "player");
-        elements.navList.classList.toggle("active", activeRoute === "list");
-        elements.navPlayer.classList.toggle("active", activeRoute === "player");
-
-        if (syncHash) {
-          const targetHash = `#${activeRoute}`;
-          if (location.hash !== targetHash) {
-            history.replaceState(null, "", targetHash);
+        function saveState() {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          } catch (error) {
+            // localStorage 写入失败时忽略，页面仍可工作
           }
         }
-      }
 
-      function getTrackListMetrics(index) {
-        const track = TRACKS[index];
-        if (!track) {
-          return null;
-        }
-        const item = ensureTrackState(track.fileName);
-        const duration = Number(item.duration) > 0 ? Number(item.duration) : 0;
-        const progress = Math.max(0, Number(item.progress) || 0);
-        const ratio = duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
-        const completeCount = Number(item.completeCount || 0);
-
-        return {
-          duration,
-          progress,
-          ratio,
-          playCount: Number(item.playCount || 0),
-          completeCount,
-          statusText: completeCount > 0 ? `已完播 ${completeCount} 次` : "未完播",
-          timeText: `${formatTime(progress)} / ${duration > 0 ? formatTime(duration) : "--:--"}`
-        };
-      }
-
-      function renderList() {
-        if (!TRACKS.length) {
-          elements.playlist.innerHTML = '<div class="empty-tip">未找到可播放的 MP3 文件</div>';
-          elements.libraryInfo.textContent = "请确认 mp3 目录是否存在并且包含音频。";
-          return;
-        }
-
-        elements.libraryInfo.textContent = `共 ${TRACKS.length} 条音频。点击任意条目进入播放器。`;
-
-        const html = TRACKS.map((track, index) => {
-          const metrics = getTrackListMetrics(index);
-          if (!metrics) {
-            return "";
+        function ensureTrackState(fileName) {
+          if (!state.tracks[fileName]) {
+            state.tracks[fileName] = defaultTrackState();
           }
-          const statusClass = metrics.completeCount > 0 ? "badge ok" : "badge";
+          return state.tracks[fileName];
+        }
 
-          return `
+        function getCurrentTrack() {
+          return TRACKS[currentIndex] || null;
+        }
+
+        function formatTime(seconds) {
+          if (!Number.isFinite(seconds) || seconds < 0) {
+            return "00:00";
+          }
+          const total = Math.floor(seconds);
+          const h = Math.floor(total / 3600);
+          const m = Math.floor((total % 3600) / 60);
+          const s = total % 60;
+
+          if (h > 0) {
+            return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+          }
+          return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        }
+
+        function escapeHtml(text) {
+          return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        }
+
+        function routeFromHash() {
+          return location.hash === "#player" ? "player" : "list";
+        }
+
+        function setRoute(route, syncHash = true) {
+          const activeRoute = route === "player" ? "player" : "list";
+          elements.listPage.classList.toggle("active", activeRoute === "list");
+          elements.playerPage.classList.toggle(
+            "active",
+            activeRoute === "player",
+          );
+          elements.navList.classList.toggle("active", activeRoute === "list");
+          elements.navPlayer.classList.toggle(
+            "active",
+            activeRoute === "player",
+          );
+
+          if (syncHash) {
+            const targetHash = `#${activeRoute}`;
+            if (location.hash !== targetHash) {
+              history.replaceState(null, "", targetHash);
+            }
+          }
+        }
+
+        function getTrackListMetrics(index) {
+          const track = TRACKS[index];
+          if (!track) {
+            return null;
+          }
+          const item = ensureTrackState(track.fileName);
+          const duration =
+            Number(item.duration) > 0 ? Number(item.duration) : 0;
+          const progress = Math.max(0, Number(item.progress) || 0);
+          const ratio =
+            duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
+          const completeCount = Number(item.completeCount || 0);
+
+          return {
+            duration,
+            progress,
+            ratio,
+            playCount: Number(item.playCount || 0),
+            completeCount,
+            statusText:
+              completeCount > 0 ? `已完播 ${completeCount} 次` : "未完播",
+            timeText: `${formatTime(progress)} / ${duration > 0 ? formatTime(duration) : "--:--"}`,
+          };
+        }
+
+        function renderList() {
+          if (!TRACKS.length) {
+            elements.playlist.innerHTML =
+              '<div class="empty-tip">未找到可播放的 MP3 文件</div>';
+            elements.libraryInfo.textContent =
+              "请确认 mp3 目录是否存在并且包含音频。";
+            return;
+          }
+
+          elements.libraryInfo.textContent = `共 ${TRACKS.length} 条音频。点击任意条目进入播放器。`;
+
+          const html = TRACKS.map((track, index) => {
+            const metrics = getTrackListMetrics(index);
+            if (!metrics) {
+              return "";
+            }
+            const statusClass =
+              metrics.completeCount > 0 ? "badge ok" : "badge";
+
+            return `
             <button class="track-item ${index === currentIndex ? "active" : ""}" data-index="${index}" type="button">
               <div class="track-title">${escapeHtml(track.title)}</div>
               <div class="progress-track"><div class="progress-fill" data-role="progress-fill" style="width:${metrics.ratio.toFixed(2)}%"></div></div>
@@ -1128,471 +1198,520 @@
               </div>
             </button>
           `;
-        }).join("");
+          }).join("");
 
-        elements.playlist.innerHTML = html;
-      }
-
-      function updateTrackListItem(index) {
-        const metrics = getTrackListMetrics(index);
-        if (!metrics) {
-          return;
+          elements.playlist.innerHTML = html;
         }
 
-        const itemEl = elements.playlist.querySelector(`.track-item[data-index="${index}"]`);
-        if (!itemEl) {
-          return;
-        }
-
-        itemEl.classList.toggle("active", index === currentIndex);
-
-        const fillEl = itemEl.querySelector('[data-role="progress-fill"]');
-        const timeEl = itemEl.querySelector('[data-role="time"]');
-        const percentEl = itemEl.querySelector('[data-role="percent"]');
-        const playCountEl = itemEl.querySelector('[data-role="play-count"]');
-        const completeCountEl = itemEl.querySelector('[data-role="complete-count"]');
-
-        if (fillEl) {
-          fillEl.style.width = `${metrics.ratio.toFixed(2)}%`;
-        }
-        if (timeEl) {
-          timeEl.textContent = metrics.timeText;
-        }
-        if (percentEl) {
-          percentEl.textContent = `进度 ${metrics.ratio.toFixed(0)}%`;
-        }
-        if (playCountEl) {
-          playCountEl.textContent = `播放 ${metrics.playCount} 次`;
-        }
-        if (completeCountEl) {
-          completeCountEl.textContent = metrics.statusText;
-          completeCountEl.classList.toggle("ok", metrics.completeCount > 0);
-        }
-      }
-
-      function renderPlayerInfo() {
-        const track = getCurrentTrack();
-        if (!track) {
-          elements.nowTitle.textContent = "-";
-          elements.nowStats.textContent = "播放 0 次 · 完播 0 次";
-          return;
-        }
-        const item = ensureTrackState(track.fileName);
-        elements.nowTitle.textContent = track.title;
-        elements.nowStats.textContent = `播放 ${item.playCount || 0} 次 · 完播 ${item.completeCount || 0} 次`;
-      }
-
-      function renderContinueButton() {
-        const track = getCurrentTrack();
-        if (!track) {
-          elements.continueBtn.disabled = true;
-          elements.continueBtn.textContent = "暂无音频";
-          return;
-        }
-
-        const item = ensureTrackState(track.fileName);
-        const hasDuration = Number(item.duration) > 0;
-        const isFinished = hasDuration && Number(item.progress) >= Number(item.duration) - 5;
-        const resumeText = !isFinished && Number(item.progress) > 0 ? `继续：${track.title}` : `播放：${track.title}`;
-
-        elements.continueBtn.disabled = false;
-        elements.continueBtn.textContent = resumeText;
-      }
-
-      function updatePlayPauseButton() {
-        elements.playPauseBtn.textContent = elements.audio.paused ? "播放" : "暂停";
-      }
-
-      function updateRangeFill() {
-        const min = Number(elements.progressRange.min) || 0;
-        const max = Number(elements.progressRange.max) || 100;
-        const value = Number(elements.progressRange.value) || 0;
-        const clamped = Math.min(max, Math.max(min, value));
-        const ratio = max > min ? ((clamped - min) / (max - min)) * 100 : 0;
-        elements.progressRange.style.setProperty("--range-progress", `${ratio.toFixed(2)}%`);
-      }
-
-      function updateTimelineUI() {
-        const track = getCurrentTrack();
-        if (!track) {
-          elements.progressRange.value = "0";
-          elements.progressRange.max = "100";
-          updateRangeFill();
-          elements.currentTime.textContent = "00:00";
-          elements.totalTime.textContent = "00:00";
-          return;
-        }
-
-        const item = ensureTrackState(track.fileName);
-        const duration = Number.isFinite(elements.audio.duration) && elements.audio.duration > 0
-          ? elements.audio.duration
-          : Number(item.duration) || 0;
-        const current = Number(elements.audio.currentTime) || Number(item.progress) || 0;
-
-        elements.progressRange.max = String(duration > 0 ? duration : 100);
-        if (!isScrubbing) {
-          elements.progressRange.value = String(Math.min(current, duration || current));
-          elements.currentTime.textContent = formatTime(current);
-        }
-        updateRangeFill();
-        elements.totalTime.textContent = formatTime(duration);
-      }
-
-      function persistCurrentProgress() {
-        const track = getCurrentTrack();
-        if (!track) {
-          return;
-        }
-
-        const item = ensureTrackState(track.fileName);
-        const current = Number(elements.audio.currentTime) || 0;
-        const duration = Number.isFinite(elements.audio.duration) && elements.audio.duration > 0
-          ? elements.audio.duration
-          : Number(item.duration) || 0;
-
-        item.progress = current;
-        if (duration > 0) {
-          item.duration = duration;
-        }
-        item.lastUpdated = Date.now();
-
-        state.currentTrackIndex = currentIndex;
-        saveState();
-      }
-
-      function maybeMarkComplete() {
-        const track = getCurrentTrack();
-        if (!track) {
-          return;
-        }
-
-        const duration = elements.audio.duration;
-        if (!Number.isFinite(duration) || duration <= 0) {
-          return;
-        }
-
-        const current = elements.audio.currentTime || 0;
-        const remaining = duration - current;
-
-        if (remaining <= 5 && !nearEndMarked) {
-          const item = ensureTrackState(track.fileName);
-          item.completeCount = Number(item.completeCount || 0) + 1;
-          nearEndMarked = true;
-          saveState();
-          updateTrackListItem(currentIndex);
-          renderPlayerInfo();
-        }
-
-        if (remaining > 5 && nearEndMarked) {
-          nearEndMarked = false;
-        }
-      }
-
-      function markPlayCountIfNeeded() {
-        if (!pendingPlayCount) {
-          return;
-        }
-        const track = getCurrentTrack();
-        if (!track) {
-          return;
-        }
-        const item = ensureTrackState(track.fileName);
-        item.playCount = Number(item.playCount || 0) + 1;
-        item.lastUpdated = Date.now();
-        pendingPlayCount = false;
-        saveState();
-        updateTrackListItem(currentIndex);
-        renderPlayerInfo();
-      }
-
-      function loadTrack(index, options = {}) {
-        if (!TRACKS.length) {
-          return;
-        }
-
-        const { autoplay = false, countPlay = false, restoreProgress = true } = options;
-        const currentLoadToken = ++loadToken;
-
-        currentIndex = clampIndex(index);
-        state.currentTrackIndex = currentIndex;
-        saveState();
-
-        pendingPlayCount = Boolean(countPlay);
-        nearEndMarked = false;
-
-        const track = getCurrentTrack();
-        const item = ensureTrackState(track.fileName);
-        const hasDuration = Number(item.duration) > 0;
-        const shouldResetFinished = hasDuration && Number(item.progress) >= Number(item.duration) - 5;
-        const resumePoint = restoreProgress && !shouldResetFinished ? Number(item.progress) || 0 : 0;
-
-        showAudioLoadingSoon(`正在加载：${track.title}`);
-
-        elements.audio.src = encodeURI(track.src);
-        elements.audio.load();
-
-        elements.currentTime.textContent = formatTime(resumePoint);
-        elements.totalTime.textContent = formatTime(Number(item.duration) || 0);
-        elements.progressRange.value = String(resumePoint);
-        updateRangeFill();
-
-        renderList();
-        renderPlayerInfo();
-        renderContinueButton();
-        updatePlayPauseButton();
-
-        const onMetadataLoaded = () => {
-          if (currentLoadToken !== loadToken) {
+        function updateTrackListItem(index) {
+          const metrics = getTrackListMetrics(index);
+          if (!metrics) {
             return;
           }
-          const duration = Number.isFinite(elements.audio.duration) && elements.audio.duration > 0
-            ? elements.audio.duration
-            : 0;
 
+          const itemEl = elements.playlist.querySelector(
+            `.track-item[data-index="${index}"]`,
+          );
+          if (!itemEl) {
+            return;
+          }
+
+          itemEl.classList.toggle("active", index === currentIndex);
+
+          const fillEl = itemEl.querySelector('[data-role="progress-fill"]');
+          const timeEl = itemEl.querySelector('[data-role="time"]');
+          const percentEl = itemEl.querySelector('[data-role="percent"]');
+          const playCountEl = itemEl.querySelector('[data-role="play-count"]');
+          const completeCountEl = itemEl.querySelector(
+            '[data-role="complete-count"]',
+          );
+
+          if (fillEl) {
+            fillEl.style.width = `${metrics.ratio.toFixed(2)}%`;
+          }
+          if (timeEl) {
+            timeEl.textContent = metrics.timeText;
+          }
+          if (percentEl) {
+            percentEl.textContent = `进度 ${metrics.ratio.toFixed(0)}%`;
+          }
+          if (playCountEl) {
+            playCountEl.textContent = `播放 ${metrics.playCount} 次`;
+          }
+          if (completeCountEl) {
+            completeCountEl.textContent = metrics.statusText;
+            completeCountEl.classList.toggle("ok", metrics.completeCount > 0);
+          }
+        }
+
+        function renderPlayerInfo() {
+          const track = getCurrentTrack();
+          if (!track) {
+            elements.nowTitle.textContent = "-";
+            elements.nowStats.textContent = "播放 0 次 · 完播 0 次";
+            return;
+          }
+          const item = ensureTrackState(track.fileName);
+          elements.nowTitle.textContent = track.title;
+          elements.nowStats.textContent = `播放 ${item.playCount || 0} 次 · 完播 ${item.completeCount || 0} 次`;
+        }
+
+        function renderContinueButton() {
+          const track = getCurrentTrack();
+          if (!track) {
+            elements.continueBtn.disabled = true;
+            elements.continueBtn.textContent = "暂无音频";
+            return;
+          }
+
+          const item = ensureTrackState(track.fileName);
+          const hasDuration = Number(item.duration) > 0;
+          const isFinished =
+            hasDuration && Number(item.progress) >= Number(item.duration) - 5;
+          const resumeText =
+            !isFinished && Number(item.progress) > 0
+              ? `继续：${track.title}`
+              : `播放：${track.title}`;
+
+          elements.continueBtn.disabled = false;
+          elements.continueBtn.textContent = resumeText;
+        }
+
+        function updatePlayPauseButton() {
+          elements.playPauseBtn.textContent = elements.audio.paused
+            ? "播放"
+            : "暂停";
+        }
+
+        function updateRangeFill() {
+          const min = Number(elements.progressRange.min) || 0;
+          const max = Number(elements.progressRange.max) || 100;
+          const value = Number(elements.progressRange.value) || 0;
+          const clamped = Math.min(max, Math.max(min, value));
+          const ratio = max > min ? ((clamped - min) / (max - min)) * 100 : 0;
+          elements.progressRange.style.setProperty(
+            "--range-progress",
+            `${ratio.toFixed(2)}%`,
+          );
+        }
+
+        function updateTimelineUI() {
+          const track = getCurrentTrack();
+          if (!track) {
+            elements.progressRange.value = "0";
+            elements.progressRange.max = "100";
+            updateRangeFill();
+            elements.currentTime.textContent = "00:00";
+            elements.totalTime.textContent = "00:00";
+            return;
+          }
+
+          const item = ensureTrackState(track.fileName);
+          const duration =
+            Number.isFinite(elements.audio.duration) &&
+            elements.audio.duration > 0
+              ? elements.audio.duration
+              : Number(item.duration) || 0;
+          const current =
+            Number(elements.audio.currentTime) || Number(item.progress) || 0;
+
+          elements.progressRange.max = String(duration > 0 ? duration : 100);
+          if (!isScrubbing) {
+            elements.progressRange.value = String(
+              Math.min(current, duration || current),
+            );
+            elements.currentTime.textContent = formatTime(current);
+          }
+          updateRangeFill();
+          elements.totalTime.textContent = formatTime(duration);
+        }
+
+        function persistCurrentProgress() {
+          const track = getCurrentTrack();
+          if (!track) {
+            return;
+          }
+
+          const item = ensureTrackState(track.fileName);
+          const current = Number(elements.audio.currentTime) || 0;
+          const duration =
+            Number.isFinite(elements.audio.duration) &&
+            elements.audio.duration > 0
+              ? elements.audio.duration
+              : Number(item.duration) || 0;
+
+          item.progress = current;
           if (duration > 0) {
             item.duration = duration;
           }
+          item.lastUpdated = Date.now();
 
-          if (resumePoint > 0 && duration > 0) {
-            const safeTime = Math.min(resumePoint, Math.max(duration - 0.2, 0));
-            elements.audio.currentTime = safeTime;
-          }
-
-          persistCurrentProgress();
-          updateTimelineUI();
-          renderList();
-          renderPlayerInfo();
-
-          if (autoplay) {
-            elements.audio.play().catch(() => {
-              updatePlayPauseButton();
-            });
-          }
-        };
-
-        elements.audio.addEventListener("loadedmetadata", onMetadataLoaded, { once: true });
-      }
-
-      function changeTrack(offset) {
-        if (!TRACKS.length) {
-          return;
+          state.currentTrackIndex = currentIndex;
+          saveState();
         }
-        const nextIndex = (currentIndex + offset + TRACKS.length) % TRACKS.length;
-        loadTrack(nextIndex, {
-          autoplay: true,
-          countPlay: true,
-          restoreProgress: true
-        });
-      }
 
-      function startProgressTimer() {
-        if (progressTimer) {
-          return;
-        }
-        progressTimer = setInterval(() => {
-          if (!getCurrentTrack()) {
-            return;
-          }
-          persistCurrentProgress();
-          maybeMarkComplete();
-          updateTrackListItem(currentIndex);
-          renderContinueButton();
-          if (!isScrubbing) {
-            updateTimelineUI();
-          }
-        }, 1000);
-      }
-
-      function bindEvents() {
-        elements.navList.addEventListener("click", () => setRoute("list"));
-        elements.navPlayer.addEventListener("click", () => setRoute("player"));
-        elements.backToList.addEventListener("click", () => setRoute("list"));
-
-        elements.playlist.addEventListener("click", (event) => {
-          const target = event.target.closest(".track-item");
-          if (!target) {
-            return;
-          }
-          const index = Number(target.dataset.index);
-          if (!Number.isFinite(index)) {
-            return;
-          }
-          loadTrack(index, {
-            autoplay: true,
-            countPlay: true,
-            restoreProgress: true
-          });
-          setRoute("player");
-        });
-
-        elements.continueBtn.addEventListener("click", () => {
-          setRoute("player");
-          if (elements.audio.paused) {
-            if (elements.audio.currentTime <= 1) {
-              pendingPlayCount = true;
-            }
-            elements.audio.play().catch(() => {
-              updatePlayPauseButton();
-            });
-          }
-        });
-
-        elements.playPauseBtn.addEventListener("click", () => {
-          if (!getCurrentTrack()) {
-            return;
-          }
-          if (elements.audio.paused) {
-            if (elements.audio.currentTime <= 1) {
-              pendingPlayCount = true;
-            }
-            elements.audio.play().catch(() => {
-              updatePlayPauseButton();
-            });
-          } else {
-            elements.audio.pause();
-          }
-        });
-
-        elements.prevBtn.addEventListener("click", () => changeTrack(-1));
-        elements.nextBtn.addEventListener("click", () => changeTrack(1));
-
-        elements.progressRange.addEventListener("input", (event) => {
-          isScrubbing = true;
-          const value = Number(event.target.value) || 0;
-          updateRangeFill();
-          elements.currentTime.textContent = formatTime(value);
-        });
-
-        elements.progressRange.addEventListener("change", (event) => {
-          const value = Number(event.target.value) || 0;
-          elements.audio.currentTime = value;
-          isScrubbing = false;
-          nearEndMarked = false;
-          persistCurrentProgress();
-          updateTimelineUI();
-          updateTrackListItem(currentIndex);
-        });
-
-        elements.audio.addEventListener("loadstart", () => {
+        function maybeMarkComplete() {
           const track = getCurrentTrack();
-          showAudioLoadingSoon(track ? `正在加载：${track.title}` : "正在加载音频...");
-        });
+          if (!track) {
+            return;
+          }
 
-        elements.audio.addEventListener("waiting", () => {
-          showAudioLoadingSoon("网络较慢，正在缓冲音频...");
-        });
+          const duration = elements.audio.duration;
+          if (!Number.isFinite(duration) || duration <= 0) {
+            return;
+          }
 
-        elements.audio.addEventListener("stalled", () => {
-          showAudioLoadingSoon("网络波动，正在重试加载...");
-        });
+          const current = elements.audio.currentTime || 0;
+          const remaining = duration - current;
 
-        elements.audio.addEventListener("seeking", () => {
-          showAudioLoadingSoon("正在定位播放位置...");
-        });
+          if (remaining <= 5 && !nearEndMarked) {
+            const item = ensureTrackState(track.fileName);
+            item.completeCount = Number(item.completeCount || 0) + 1;
+            nearEndMarked = true;
+            saveState();
+            updateTrackListItem(currentIndex);
+            renderPlayerInfo();
+          }
 
-        elements.audio.addEventListener("canplay", () => {
-          hideAudioLoading();
-        });
-
-        elements.audio.addEventListener("canplaythrough", () => {
-          hideAudioLoading();
-        });
-
-        elements.audio.addEventListener("playing", () => {
-          hideAudioLoading();
-        });
-
-        elements.audio.addEventListener("seeked", () => {
-          hideAudioLoading();
-        });
-
-        elements.audio.addEventListener("error", () => {
-          clearTimeout(audioLoadingTimer);
-          audioLoadingTimer = null;
-          clearTimeout(audioLoadingFallbackTimer);
-          setAudioLoadingVisible(true, "加载失败，请检查网络或音频路径。");
-          audioLoadingFallbackTimer = setTimeout(() => {
-            hideAudioLoading();
-          }, 2000);
-        });
-
-        elements.audio.addEventListener("play", () => {
-          if (Number.isFinite(elements.audio.duration) && elements.audio.currentTime < elements.audio.duration - 5) {
+          if (remaining > 5 && nearEndMarked) {
             nearEndMarked = false;
           }
-          markPlayCountIfNeeded();
-          updatePlayPauseButton();
-        });
+        }
 
-        elements.audio.addEventListener("pause", () => {
-          persistCurrentProgress();
-          updateTrackListItem(currentIndex);
-          updatePlayPauseButton();
-        });
-
-        elements.audio.addEventListener("timeupdate", () => {
-          if (!isScrubbing) {
-            updateTimelineUI();
+        function markPlayCountIfNeeded() {
+          if (!pendingPlayCount) {
+            return;
           }
-          maybeMarkComplete();
-          updateTrackListItem(currentIndex);
-        });
-
-        elements.audio.addEventListener("ended", () => {
-          persistCurrentProgress();
-          updateTimelineUI();
-          updateTrackListItem(currentIndex);
-          hideAudioLoading();
-          updatePlayPauseButton();
-        });
-
-        window.addEventListener("hashchange", () => {
-          setRoute(routeFromHash(), false);
-        });
-
-        window.addEventListener("beforeunload", () => {
-          hideAudioLoading();
-          persistCurrentProgress();
+          const track = getCurrentTrack();
+          if (!track) {
+            return;
+          }
+          const item = ensureTrackState(track.fileName);
+          item.playCount = Number(item.playCount || 0) + 1;
+          item.lastUpdated = Date.now();
+          pendingPlayCount = false;
           saveState();
-        });
-      }
-
-      async function init() {
-        bindEvents();
-        const discoveredFiles = await discoverTrackFiles();
-        setTracks(discoveredFiles);
-        renderList();
-
-        if (!TRACKS.length) {
-          setRoute("list");
-          return;
+          updateTrackListItem(currentIndex);
+          renderPlayerInfo();
         }
 
-        const currentTrack = getCurrentTrack();
-        const item = currentTrack ? ensureTrackState(currentTrack.fileName) : defaultTrackState();
-        const hasDuration = Number(item.duration) > 0;
-        const hasResume = Number(item.progress) > 0 && (!hasDuration || Number(item.progress) < Number(item.duration) - 5);
+        function loadTrack(index, options = {}) {
+          if (!TRACKS.length) {
+            return;
+          }
 
-        loadTrack(currentIndex, {
-          autoplay: false,
-          countPlay: false,
-          restoreProgress: true
-        });
+          const {
+            autoplay = false,
+            countPlay = false,
+            restoreProgress = true,
+          } = options;
+          const currentLoadToken = ++loadToken;
 
-        if (!location.hash) {
-          setRoute(hasResume ? "player" : "list");
-        } else {
-          setRoute(routeFromHash(), false);
+          currentIndex = clampIndex(index);
+          state.currentTrackIndex = currentIndex;
+          saveState();
+
+          pendingPlayCount = Boolean(countPlay);
+          nearEndMarked = false;
+
+          const track = getCurrentTrack();
+          const item = ensureTrackState(track.fileName);
+          const hasDuration = Number(item.duration) > 0;
+          const shouldResetFinished =
+            hasDuration && Number(item.progress) >= Number(item.duration) - 5;
+          const resumePoint =
+            restoreProgress && !shouldResetFinished
+              ? Number(item.progress) || 0
+              : 0;
+
+          showAudioLoadingSoon(`正在加载：${track.title}`);
+
+          elements.audio.src = encodeURI(track.src);
+          elements.audio.load();
+
+          elements.currentTime.textContent = formatTime(resumePoint);
+          elements.totalTime.textContent = formatTime(
+            Number(item.duration) || 0,
+          );
+          elements.progressRange.value = String(resumePoint);
+          updateRangeFill();
+
+          renderList();
+          renderPlayerInfo();
+          renderContinueButton();
+          updatePlayPauseButton();
+
+          const onMetadataLoaded = () => {
+            if (currentLoadToken !== loadToken) {
+              return;
+            }
+            const duration =
+              Number.isFinite(elements.audio.duration) &&
+              elements.audio.duration > 0
+                ? elements.audio.duration
+                : 0;
+
+            if (duration > 0) {
+              item.duration = duration;
+            }
+
+            if (resumePoint > 0 && duration > 0) {
+              const safeTime = Math.min(
+                resumePoint,
+                Math.max(duration - 0.2, 0),
+              );
+              elements.audio.currentTime = safeTime;
+            }
+
+            persistCurrentProgress();
+            updateTimelineUI();
+            renderList();
+            renderPlayerInfo();
+
+            if (autoplay) {
+              elements.audio.play().catch(() => {
+                updatePlayPauseButton();
+              });
+            }
+          };
+
+          elements.audio.addEventListener("loadedmetadata", onMetadataLoaded, {
+            once: true,
+          });
         }
 
-        renderContinueButton();
-        updateTimelineUI();
-        updatePlayPauseButton();
-        startProgressTimer();
-      }
+        function changeTrack(offset) {
+          if (!TRACKS.length) {
+            return;
+          }
+          const nextIndex =
+            (currentIndex + offset + TRACKS.length) % TRACKS.length;
+          loadTrack(nextIndex, {
+            autoplay: true,
+            countPlay: true,
+            restoreProgress: true,
+          });
+        }
 
-      bootstrap();
-    })();
-  </script>
-</body>
+        function startProgressTimer() {
+          if (progressTimer) {
+            return;
+          }
+          progressTimer = setInterval(() => {
+            if (!getCurrentTrack()) {
+              return;
+            }
+            persistCurrentProgress();
+            maybeMarkComplete();
+            updateTrackListItem(currentIndex);
+            renderContinueButton();
+            if (!isScrubbing) {
+              updateTimelineUI();
+            }
+          }, 1000);
+        }
+
+        function bindEvents() {
+          elements.navList.addEventListener("click", () => setRoute("list"));
+          elements.navPlayer.addEventListener("click", () =>
+            setRoute("player"),
+          );
+          elements.backToList.addEventListener("click", () => setRoute("list"));
+
+          elements.playlist.addEventListener("click", (event) => {
+            const target = event.target.closest(".track-item");
+            if (!target) {
+              return;
+            }
+            const index = Number(target.dataset.index);
+            if (!Number.isFinite(index)) {
+              return;
+            }
+            loadTrack(index, {
+              autoplay: true,
+              countPlay: true,
+              restoreProgress: true,
+            });
+            setRoute("player");
+          });
+
+          elements.continueBtn.addEventListener("click", () => {
+            setRoute("player");
+            if (elements.audio.paused) {
+              if (elements.audio.currentTime <= 1) {
+                pendingPlayCount = true;
+              }
+              elements.audio.play().catch(() => {
+                updatePlayPauseButton();
+              });
+            }
+          });
+
+          elements.playPauseBtn.addEventListener("click", () => {
+            if (!getCurrentTrack()) {
+              return;
+            }
+            if (elements.audio.paused) {
+              if (elements.audio.currentTime <= 1) {
+                pendingPlayCount = true;
+              }
+              elements.audio.play().catch(() => {
+                updatePlayPauseButton();
+              });
+            } else {
+              elements.audio.pause();
+            }
+          });
+
+          elements.prevBtn.addEventListener("click", () => changeTrack(-1));
+          elements.nextBtn.addEventListener("click", () => changeTrack(1));
+
+          elements.progressRange.addEventListener("input", (event) => {
+            isScrubbing = true;
+            const value = Number(event.target.value) || 0;
+            updateRangeFill();
+            elements.currentTime.textContent = formatTime(value);
+          });
+
+          elements.progressRange.addEventListener("change", (event) => {
+            const value = Number(event.target.value) || 0;
+            elements.audio.currentTime = value;
+            isScrubbing = false;
+            nearEndMarked = false;
+            persistCurrentProgress();
+            updateTimelineUI();
+            updateTrackListItem(currentIndex);
+          });
+
+          elements.audio.addEventListener("loadstart", () => {
+            const track = getCurrentTrack();
+            showAudioLoadingSoon(
+              track ? `正在加载：${track.title}` : "正在加载音频...",
+            );
+          });
+
+          elements.audio.addEventListener("waiting", () => {
+            showAudioLoadingSoon("网络较慢，正在缓冲音频...");
+          });
+
+          elements.audio.addEventListener("stalled", () => {
+            showAudioLoadingSoon("网络波动，正在重试加载...");
+          });
+
+          elements.audio.addEventListener("seeking", () => {
+            showAudioLoadingSoon("正在定位播放位置...");
+          });
+
+          elements.audio.addEventListener("canplay", () => {
+            hideAudioLoading();
+          });
+
+          elements.audio.addEventListener("canplaythrough", () => {
+            hideAudioLoading();
+          });
+
+          elements.audio.addEventListener("playing", () => {
+            hideAudioLoading();
+          });
+
+          elements.audio.addEventListener("seeked", () => {
+            hideAudioLoading();
+          });
+
+          elements.audio.addEventListener("error", () => {
+            clearTimeout(audioLoadingTimer);
+            audioLoadingTimer = null;
+            clearTimeout(audioLoadingFallbackTimer);
+            setAudioLoadingVisible(true, "加载失败，请检查网络或音频路径。");
+            audioLoadingFallbackTimer = setTimeout(() => {
+              hideAudioLoading();
+            }, 2000);
+          });
+
+          elements.audio.addEventListener("play", () => {
+            if (
+              Number.isFinite(elements.audio.duration) &&
+              elements.audio.currentTime < elements.audio.duration - 5
+            ) {
+              nearEndMarked = false;
+            }
+            markPlayCountIfNeeded();
+            updatePlayPauseButton();
+          });
+
+          elements.audio.addEventListener("pause", () => {
+            persistCurrentProgress();
+            updateTrackListItem(currentIndex);
+            updatePlayPauseButton();
+          });
+
+          elements.audio.addEventListener("timeupdate", () => {
+            if (!isScrubbing) {
+              updateTimelineUI();
+            }
+            maybeMarkComplete();
+            updateTrackListItem(currentIndex);
+          });
+
+          elements.audio.addEventListener("ended", () => {
+            persistCurrentProgress();
+            updateTimelineUI();
+            updateTrackListItem(currentIndex);
+            hideAudioLoading();
+            updatePlayPauseButton();
+          });
+
+          window.addEventListener("hashchange", () => {
+            setRoute(routeFromHash(), false);
+          });
+
+          window.addEventListener("beforeunload", () => {
+            hideAudioLoading();
+            persistCurrentProgress();
+            saveState();
+          });
+        }
+
+        async function init() {
+          bindEvents();
+          const discoveredFiles = await discoverTrackFiles();
+          setTracks(discoveredFiles);
+          renderList();
+
+          if (!TRACKS.length) {
+            setRoute("list");
+            return;
+          }
+
+          const currentTrack = getCurrentTrack();
+          const item = currentTrack
+            ? ensureTrackState(currentTrack.fileName)
+            : defaultTrackState();
+          const hasDuration = Number(item.duration) > 0;
+          const hasResume =
+            Number(item.progress) > 0 &&
+            (!hasDuration || Number(item.progress) < Number(item.duration) - 5);
+
+          loadTrack(currentIndex, {
+            autoplay: false,
+            countPlay: false,
+            restoreProgress: true,
+          });
+
+          if (!location.hash) {
+            setRoute(hasResume ? "player" : "list");
+          } else {
+            setRoute(routeFromHash(), false);
+          }
+
+          renderContinueButton();
+          updateTimelineUI();
+          updatePlayPauseButton();
+          startProgressTimer();
+        }
+
+        bootstrap();
+      })();
+    </script>
+  </body>
 </html>
